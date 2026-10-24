@@ -20,8 +20,24 @@ jobs:
         include:
           - repository: easyquery/eq-samples-aspnetcore-razor-mvc
             solution: Samples.AspNetCore.sln
+          - repository: easyquery/eq-samples-aspnetcore-angular
+            solution: Samples.Angular.sln
+          - repository: easyquery/eq-samples-aspnetcore-blazor
+            solution: Samples.Blazor.sln
+          - repository: easyquery/eq-samples-aspnetcore-react
+            solution: Samples.React.sln
           - repository: easyquery/eq-samples-aspnetcore-vue
             solution: Samples.Vue.sln
+          - repository: easyquery/eq-samples-aspnetcore-stencil
+            solution: Samples.Stencil.sln
+          - repository: easyquery/eq-samples-aspnet4-mvc
+            solution: Samples.AspNet4x.MVC.sln
+          - repository: easyquery/eq-samples-aspnet4-webforms
+            solution: Samples.WebForms.sln
+          - repository: easyquery/eq-samples-winforms
+            solution: Samples.WinForms.sln
+          - repository: easyquery/eq-samples-wpf
+            solution: Samples.Wpf.sln
     uses: ./.github/workflows/build-samples.yml
     with:
       repository: ${{ matrix.repository }}
