@@ -44,7 +44,7 @@ published samples repository.
    - **Compatible change** (same inputs, same job names): move the tag.
 
      ```bash
-     git tag -f v1 main
+     git tag -f -a v1 -m "build-samples.yml v1: <what changed>" main
      git push -f origin v1
      ```
 
