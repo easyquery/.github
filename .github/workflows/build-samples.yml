@@ -1,0 +1,39 @@
+# Reusable build for the eq-samples-* repositories.
+# Called from each repository's .github/workflows/build.yml with the solution to build.
+#
+# Windows, because the .NET Framework, WinForms and WPF samples need it, and MSBuild
+# (not `dotnet build`), because only MSBuild builds the old-style .NET Framework projects.
+# Both SDK-style and old-style projects restore with `-restore`, and the .esproj client
+# projects and SpaRoot targets run their own npm install / build.
+
+name: Build samples
+
+on:
+  workflow_call:
+    inputs:
+      solution:
+        description: Solution file at the repository root
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            6.0.x
+            8.0.x
+            10.0.x
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Build
+        run: msbuild "${{ inputs.solution }}" -restore -p:Configuration=Release -m -nologo -v:minimal
