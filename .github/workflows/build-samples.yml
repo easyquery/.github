@@ -51,11 +51,39 @@ jobs:
 
       - uses: microsoft/setup-msbuild@v2
 
+      - name: Install missing .NET Framework reference assemblies
+        shell: pwsh
+        run: |
+          # Old-style projects need the reference assemblies of their TargetFrameworkVersion,
+          # and the runner image doesn't carry every version (4.6.1 is gone since VS 18). Each
+          # missing one comes from Microsoft's NuGet package of the same assemblies.
+          $skip = '[\\/]node_modules[\\/]'
+          $root = Join-Path ${env:ProgramFiles(x86)} 'Reference Assemblies\Microsoft\Framework\.NETFramework'
+          $versions = Get-ChildItem -Recurse -Include *.csproj, *.vbproj |
+              Where-Object { $_.FullName -notmatch $skip } |
+              Select-String -Pattern '<TargetFrameworkVersion>v([0-9.]+)</TargetFrameworkVersion>' |
+              ForEach-Object { $_.Matches[0].Groups[1].Value } | Sort-Object -Unique
+          if (-not $versions) { Write-Host 'No .NET Framework projects.'; exit 0 }
+          foreach ($v in $versions) {
+              if (Test-Path (Join-Path $root "v$v\mscorlib.dll")) { Write-Host "v${v}: on the runner"; continue }
+              $id = "microsoft.netframework.referenceassemblies.net$($v -replace '\.', '')"
+              $nupkg = Join-Path $env:RUNNER_TEMP "$id.zip"
+              Invoke-WebRequest "https://api.nuget.org/v3-flatcontainer/$id/1.0.3/$id.1.0.3.nupkg" -OutFile $nupkg
+              $dir = Join-Path $env:RUNNER_TEMP $id
+              Expand-Archive $nupkg $dir -Force
+              Copy-Item (Join-Path $dir "build\.NETFramework\v$v") $root -Recurse -Force
+              Write-Host "v${v}: installed from NuGet $id 1.0.3"
+          }
+
       - name: Build
         run: msbuild "${{ inputs.solution }}" -restore -p:Configuration=Release -m -nologo -v:minimal
 
       - name: Build the client apps
         shell: pwsh
+        env:
+          # GitHub sets CI=true, and create-react-app then fails the build on lint warnings.
+          CI: 'false'
+          NG_CLI_ANALYTICS: 'false'
         run: |
           # .esproj folders, plus each project's SpaRoot resolved against its folder; a SpaRoot
           # that points at an .esproj folder (Vue 3's server) is listed once.
