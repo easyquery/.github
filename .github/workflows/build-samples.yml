@@ -22,12 +22,21 @@ on:
         description: Solution file at the repository root
         required: true
         type: string
+      repository:
+        description: >-
+          Repository to build (owner/name). Empty means the calling repository. Set only by
+          test-build-samples.yml, which builds the samples repositories from here.
+        required: false
+        type: string
+        default: ''
 
 jobs:
   build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repository != '' && inputs.repository || github.repository }}
 
       - uses: actions/setup-dotnet@v4
         with:

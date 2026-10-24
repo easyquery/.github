@@ -1,0 +1,28 @@
+# Tests build-samples.yml as it is on the branch this runs from, against the published
+# samples repositories (their default branch), before the version tag the samples use is moved.
+#
+#   gh workflow run test-build-samples.yml -R easyquery/.github --ref <branch>
+#
+# `uses: ./...` takes build-samples.yml from the same commit as this file, so a change on a
+# branch is tested without touching any samples repository. See README.md, "Changing the
+# build workflow". Add every newly published eq-samples-* repository to the matrix.
+
+name: Test build-samples
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - repository: easyquery/eq-samples-aspnetcore-razor-mvc
+            solution: Samples.AspNetCore.sln
+          - repository: easyquery/eq-samples-aspnetcore-vue
+            solution: Samples.Vue.sln
+    uses: ./.github/workflows/build-samples.yml
+    with:
+      repository: ${{ matrix.repository }}
+      solution: ${{ matrix.solution }}
