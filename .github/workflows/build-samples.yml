@@ -3,8 +3,11 @@
 #
 # Windows, because the .NET Framework, WinForms and WPF samples need it, and MSBuild
 # (not `dotnet build`), because only MSBuild builds the old-style .NET Framework projects.
-# Both SDK-style and old-style projects restore with `-restore`, and the .esproj client
-# projects and SpaRoot targets run their own npm install / build.
+# Both SDK-style and old-style projects restore with `-restore`.
+#
+# The .esproj client projects (Vue 3, Angular ad-hoc reporting) set ShouldRunBuildScript to
+# false, so the solution build only runs `npm install` for them. A separate step then runs
+# `npm run build` in each of them, so the client code is compiled too.
 
 name: Build samples
 
@@ -37,3 +40,22 @@ jobs:
 
       - name: Build
         run: msbuild "${{ inputs.solution }}" -restore -p:Configuration=Release -m -nologo -v:minimal
+
+      - name: Build the .esproj client apps
+        shell: pwsh
+        run: |
+          $clients = Get-ChildItem -Recurse -Filter *.esproj |
+              Where-Object { $_.FullName -notmatch '[\\/]node_modules[\\/]' }
+          if (-not $clients) { Write-Host 'No .esproj client apps.'; exit 0 }
+          foreach ($c in $clients) {
+              Write-Host "::group::npm run build in $($c.DirectoryName)"
+              Push-Location $c.DirectoryName
+              if (-not (Test-Path node_modules)) {
+                  npm install --no-audit --no-fund
+                  if ($LASTEXITCODE) { exit $LASTEXITCODE }
+              }
+              npm run build
+              if ($LASTEXITCODE) { exit $LASTEXITCODE }
+              Pop-Location
+              Write-Host '::endgroup::'
+          }
