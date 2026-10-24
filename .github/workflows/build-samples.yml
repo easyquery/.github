@@ -47,6 +47,10 @@ jobs:
           $clients = Get-ChildItem -Recurse -Filter *.esproj |
               Where-Object { $_.FullName -notmatch '[\\/]node_modules[\\/]' }
           if (-not $clients) { Write-Host 'No .esproj client apps.'; exit 0 }
+          # The Visual Studio vite/Angular templates export an ASP.NET Core dev certificate when
+          # their config loads, even for a build, and current SDKs refuse to export into a
+          # folder that doesn't exist yet.
+          New-Item -ItemType Directory -Force "$env:APPDATA\ASP.NET\https" | Out-Null
           foreach ($c in $clients) {
               Write-Host "::group::npm run build in $($c.DirectoryName)"
               Push-Location $c.DirectoryName
