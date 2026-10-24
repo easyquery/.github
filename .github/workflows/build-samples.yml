@@ -5,9 +5,13 @@
 # (not `dotnet build`), because only MSBuild builds the old-style .NET Framework projects.
 # Both SDK-style and old-style projects restore with `-restore`.
 #
-# The .esproj client projects (Vue 3, Angular ad-hoc reporting) set ShouldRunBuildScript to
-# false, so the solution build only runs `npm install` for them. A separate step then runs
-# `npm run build` in each of them, so the client code is compiled too.
+# The solution build doesn't compile every client app:
+# - .esproj clients (Vue 3, Angular ad-hoc reporting) set ShouldRunBuildScript to false, so it
+#   only runs `npm install` for them;
+# - SpaRoot ClientApp folders (Vue 2, React, Stencil, Angular advanced search) only get
+#   `npm run build` on `dotnet publish`, not on a build.
+# The last step therefore runs `npm install` (where needed) and `npm run build` in each of
+# them. Clients that their project builds itself (RazorTypeScript's PreBuild) are not listed.
 
 name: Build samples
 
@@ -41,19 +45,32 @@ jobs:
       - name: Build
         run: msbuild "${{ inputs.solution }}" -restore -p:Configuration=Release -m -nologo -v:minimal
 
-      - name: Build the .esproj client apps
+      - name: Build the client apps
         shell: pwsh
         run: |
-          $clients = Get-ChildItem -Recurse -Filter *.esproj |
-              Where-Object { $_.FullName -notmatch '[\\/]node_modules[\\/]' }
-          if (-not $clients) { Write-Host 'No .esproj client apps.'; exit 0 }
+          # .esproj folders, plus each project's SpaRoot resolved against its folder; a SpaRoot
+          # that points at an .esproj folder (Vue 3's server) is listed once.
+          $skip = '[\\/]node_modules[\\/]'
+          $dirs = @()
+          $dirs += Get-ChildItem -Recurse -Filter *.esproj |
+              Where-Object { $_.FullName -notmatch $skip } | ForEach-Object { $_.DirectoryName }
+          foreach ($p in Get-ChildItem -Recurse -Include *.csproj, *.vbproj |
+                  Where-Object { $_.FullName -notmatch $skip }) {
+              $m = Select-String -Path $p.FullName -Pattern '<SpaRoot>([^<]+)</SpaRoot>' | Select-Object -First 1
+              if ($m) {
+                  $dir = Join-Path $p.DirectoryName $m.Matches[0].Groups[1].Value
+                  if (Test-Path (Join-Path $dir 'package.json')) { $dirs += (Resolve-Path $dir).Path.TrimEnd('\', '/') }
+              }
+          }
+          $dirs = $dirs | Sort-Object -Unique
+          if (-not $dirs) { Write-Host 'No client apps to build.'; exit 0 }
           # The Visual Studio vite/Angular templates export an ASP.NET Core dev certificate when
           # their config loads, even for a build, and current SDKs refuse to export into a
           # folder that doesn't exist yet.
           New-Item -ItemType Directory -Force "$env:APPDATA\ASP.NET\https" | Out-Null
-          foreach ($c in $clients) {
-              Write-Host "::group::npm run build in $($c.DirectoryName)"
-              Push-Location $c.DirectoryName
+          foreach ($d in $dirs) {
+              Write-Host "::group::npm run build in $d"
+              Push-Location $d
               if (-not (Test-Path node_modules)) {
                   npm install --no-audit --no-fund
                   if ($LASTEXITCODE) { exit $LASTEXITCODE }
